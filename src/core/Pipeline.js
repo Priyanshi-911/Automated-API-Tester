@@ -1,6 +1,7 @@
 const logger = require('../utils/logger');
 const Ingestor = require('../modules/Ingestor');
 const Parser = require('../modules/Parser');
+const ApiBlueprint = require('../models/ApiBlueprint'); // NEW IMPORT
 
 class Pipeline {
     /**
@@ -15,7 +16,7 @@ class Pipeline {
     }
 
     /**
-     * The master control sequence. This runs the entire tool from start to finish.
+     * The master control sequence.
      * @returns {Promise<Object>} The final result of the pipeline.
      */
     async run() {
@@ -47,26 +48,32 @@ class Pipeline {
                 return { status: 'aborted', reason: 'No routes found' };
             }
 
-            // --- Future stages (Blueprint, Security Analyzer, Generator) will go here ---
+            // ---------------------------------------------------------
+            // STAGE 3: Data Structuring (The Boundary Layer)
+            // ---------------------------------------------------------
+            logger.info('[STAGE 3] Structuring Data into API Blueprint...');
+            // We pass the chaotic AI output directly into our strict DTO class
+            const blueprint = new ApiBlueprint(extractedRoutes);
 
-            // For now, we will just log our success and return the routes
+            // --- Future stages (Security Analyzer, Generator) will go here ---
+
             logger.info('================================================');
-            logger.info('✅ Pipeline Execution Completed Successfully');
-            logger.info(`📊 Total Routes Extracted: ${extractedRoutes.length}`);
+            logger.info('✅ Extraction & Structuring Completed Successfully');
+            logger.info(`📊 Total Valid Endpoints: ${blueprint.endpoints.length}`);
             logger.info('================================================');
 
             return {
                 status: 'success',
-                data: extractedRoutes
+                // Notice we return blueprint.endpoints, NOT extractedRoutes
+                data: blueprint.endpoints 
             };
 
         } catch (error) {
-            // Global Error Handler: If ANY stage throws an unhandled error, it bubbles up to here.
             logger.error('================================================');
             logger.error(`❌ FATAL PIPELINE ERROR: ${error.message}`);
             logger.error('================================================');
             
-            throw error; // Rethrow to the CLI so it can exit the process safely
+            throw error;
         }
     }
 }
