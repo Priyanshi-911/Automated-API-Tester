@@ -3,8 +3,9 @@ const path = require('path');
 const logger = require('../utils/logger');
 
 class Ingestor {
-    constructor(targetDirectory) {
-        this.targetDirectory = targetDirectory;
+    constructor(targetPath) {
+        // Renamed from targetDirectory to targetPath to reflect broader support
+        this.targetPath = targetPath;
     }
 
     /**
@@ -12,26 +13,34 @@ class Ingestor {
      * @returns {Promise<Array>} Array of objects containing file paths and their string content.
      */
     async execute() {
-        logger.info(`Starting ingestion for directory: ${this.targetDirectory}`);
+        logger.info(`Starting ingestion for: ${this.targetPath}`);
         
         try {
-            // Convert relative path to an absolute path based on where the script is run
-            const absolutePath = path.resolve(process.cwd(), this.targetDirectory);
-            
-            // Check if the path exists and is actually a directory
+            const absolutePath = path.resolve(process.cwd(), this.targetPath);
             const stat = await fs.stat(absolutePath);
-            if (!stat.isDirectory()) {
-                throw new Error(`Target path is not a directory: ${absolutePath}`);
+
+            // NEW LOGIC: Handle single file targeting
+            if (stat.isFile()) {
+                if (absolutePath.endsWith('.js') || absolutePath.endsWith('.ts')) {
+                    const content = await fs.readFile(absolutePath, 'utf8');
+                    logger.info(`Ingestion complete. Target was a single file.`);
+                    return [{ filePath: absolutePath, content: content }];
+                } else {
+                    throw new Error(`Target file must be a .js or .ts file: ${absolutePath}`);
+                }
             }
 
-            const files = await this.readDirectory(absolutePath);
-            logger.info(`Ingestion complete. Found ${files.length} relevant files.`);
-            
-            return files;
+            // ORIGINAL LOGIC: Handle directory scanning
+            if (stat.isDirectory()) {
+                const files = await this.readDirectory(absolutePath);
+                logger.info(`Ingestion complete. Found ${files.length} relevant files in directory.`);
+                return files;
+            }
+
+            throw new Error(`Target path is neither a valid file nor directory: ${absolutePath}`);
 
         } catch (error) {
             logger.error(`Ingestion failed: ${error.message}`);
-            // We throw the error so the main Pipeline knows execution must stop
             throw error; 
         }
     }
@@ -43,23 +52,18 @@ class Ingestor {
      */
     async readDirectory(dir) {
         let results = [];
-        
-        // Read contents of the directory. 'withFileTypes' lets us easily check if an item is a folder or file.
         const list = await fs.readdir(dir, { withFileTypes: true });
 
         for (const item of list) {
             const fullPath = path.join(dir, item.name);
 
             if (item.isDirectory()) {
-                // Ignore irrelevant folders to save memory and processing time
                 if (item.name === 'node_modules' || item.name.startsWith('.')) {
                     continue; 
                 }
-                // Recursion: If it's a folder, call this exact function again to look inside it
                 const subFiles = await this.readDirectory(fullPath);
                 results = results.concat(subFiles);
             } else {
-                // We only care about backend code files (JavaScript/TypeScript)
                 if (fullPath.endsWith('.js') || fullPath.endsWith('.ts')) {
                     const content = await fs.readFile(fullPath, 'utf8');
                     results.push({
@@ -70,7 +74,6 @@ class Ingestor {
                 }
             }
         }
-        
         return results;
     }
 }
