@@ -1,7 +1,9 @@
 const logger = require('../utils/logger');
 const Ingestor = require('../modules/Ingestor');
 const Parser = require('../modules/Parser');
-const ApiBlueprint = require('../models/ApiBlueprint'); // NEW IMPORT
+const ApiBlueprint = require('../models/ApiBlueprint');
+const SecurityAnalyzer = require('../modules/SecurityAnalyzer');     // NEW IMPORT
+const ValidationGenerator = require('../modules/ValidationGenerator'); // NEW IMPORT
 
 class Pipeline {
     /**
@@ -10,9 +12,11 @@ class Pipeline {
     constructor(targetDirectory) {
         this.targetDirectory = targetDirectory;
         
-        // Instantiate our modules
+        // Instantiate all our modules
         this.ingestor = new Ingestor(this.targetDirectory);
         this.parser = new Parser();
+        this.securityAnalyzer = new SecurityAnalyzer();       // NEW
+        this.validationGenerator = new ValidationGenerator(); // NEW
     }
 
     /**
@@ -52,19 +56,31 @@ class Pipeline {
             // STAGE 3: Data Structuring (The Boundary Layer)
             // ---------------------------------------------------------
             logger.info('[STAGE 3] Structuring Data into API Blueprint...');
-            // We pass the chaotic AI output directly into our strict DTO class
-            const blueprint = new ApiBlueprint(extractedRoutes);
+            let blueprint = new ApiBlueprint(extractedRoutes);
 
-            // --- Future stages (Security Analyzer, Generator) will go here ---
+            // ---------------------------------------------------------
+            // STAGE 4: Security Analysis (AI Enrichment)
+            // ---------------------------------------------------------
+            logger.info('[STAGE 4] Executing Security Analysis...');
+            // The analyzer mutates the blueprint by reference, attaching vulnerability payloads
+            blueprint = await this.securityAnalyzer.execute(blueprint);
+
+            // ---------------------------------------------------------
+            // STAGE 5: Functional Validation (AI Enrichment)
+            // ---------------------------------------------------------
+            logger.info('[STAGE 5] Executing Functional Validation...');
+            // The generator mutates the blueprint by reference, attaching HTTP/JSON assertions
+            blueprint = await this.validationGenerator.execute(blueprint);
+
+            // --- Future stage (Scenario Engine & K6 Generator) will go here ---
 
             logger.info('================================================');
-            logger.info('✅ Extraction & Structuring Completed Successfully');
-            logger.info(`📊 Total Valid Endpoints: ${blueprint.endpoints.length}`);
+            logger.info('✅ Pipeline Execution (Phases 1 & 2) Completed Successfully');
+            logger.info(`📊 Total Enriched Endpoints Ready for Generation: ${blueprint.endpoints.length}`);
             logger.info('================================================');
 
             return {
                 status: 'success',
-                // Notice we return blueprint.endpoints, NOT extractedRoutes
                 data: blueprint.endpoints 
             };
 
@@ -78,4 +94,4 @@ class Pipeline {
     }
 }
 
-module.exports = Pipeline;
+module.exports = Pipeline; 
